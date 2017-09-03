@@ -250,11 +250,37 @@ _ = visualize.NCHW.ShowMultiple(conv)
 workspace.RunNetOnce(test_model.param_init_net)
 workspace.CreateNet(test_model.net, overwrite=True)
 test_accuracy = np.zeros(100)
-for i in tqdm(range(100)):
-    workspace.RunNet(test_model.net.Proto().name)
-    test_accuracy[i] = workspace.FetchBlob('accuracy')
+# for i in tqdm(range(100)):
+    # workspace.RunNet(test_model.net.Proto().name)
+    # test_accuracy[i] = workspace.FetchBlob('accuracy')
 # After the execution is done, let's plot the values.
-print workspace.FetchBlob('conv1_b')
+# print workspace.FetchBlob('conv1_b')
+#Hack to write C header files
+def writeHeader(name, *args):
+    f = open("headers/" + name, "w+")
+    str_var = ""
+    for arg in args:
+        arr = workspace.FetchBlob(arg)
+        min_arr = np.squeeze(arr)
+        print min_arr.shape
+        str_arr = ",".join(map(str, min_arr.tolist()))
+        str_arr = str(str_arr).replace('[', '{').replace(']', '}').replace(',', ', ').replace(',  ', ', ')
+        str_dim = ""
+        for dim in min_arr.shape:
+            str_dim += '[' + str(dim) + ']'
+        str_var += "float " + arg + str_dim + " = {" + str_arr + "};\n\n"
+        # print str_var
+
+    f.write(str_var)
+    f.close()
+
+
+writeHeader("conv1.h", "conv1_w", "conv1_b")
+writeHeader("conv2.h", "conv2_w", "conv2_b")
+writeHeader("fc3.h", "fc3_w", "fc3_b")
+writeHeader("pred.h", "pred_w", "pred_b")
+
+# Continue
 pyplot.plot(test_accuracy, 'r')
 pyplot.title('Acuracy over test batches.')
 print('test_accuracy: %f' % test_accuracy.mean())
