@@ -20,12 +20,11 @@ void convolve(float **src, uint sw, uint sh, float **filter, uint fw, uint fh, u
 }
 
 void mul(float **src, uint sw, uint sh, float **filter, uint fw, uint fh, float **dest) {
-	if(sw != fh)
-		return;
-	
 	for(uint i = 0; i < sh; i ++) {
-		for(uint j = 0; j < sw; j ++) {
-			dest[i][j] += src[i][j] * filter[j][i];
+		for(uint j = 0; j < fh; j ++) {
+			for(uint k = 0; k < fw; k++) {
+				dest[i][j] += src[i][k] * filter[k][j];
+			}
 		}
 	}
 }
