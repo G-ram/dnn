@@ -8,7 +8,7 @@
 
 typedef unsigned int uint;
 
-float input[IMG_WIDTH][IMG_HEIGHT] = {};
+float input[IMG_WIDTH][IMG_HEIGHT] = {0};
 
 float infer(float src[28][28]);
 void conv1_layer(float src[28][28], float dest[20][24][24]);
@@ -19,16 +19,22 @@ void fc3_layer(float src[100][4][4], float dest[500]);
 void relu_layer(float src[500], float dest[500]);
 void pred_layer(float src[500], float dest[10]);
 
-void convolve2d(uint rows, uint cols, float src[][cols], uint frows, uint fcols, 
-	float filter[][fcols], uint drows, uint dcols, float dest[][dcols]);
+void convolve2d(uint rows, uint cols, float src[][cols], uint size, 
+	float filter[][size], uint drows, uint dcols, float dest[][dcols]);
+
 void convolve3d(uint rows, uint cols, uint layers, float src[][rows][cols], 
-	uint frows, uint fcols, uint flayers, float filter[][frows][fcols], 
-	uint drows, uint dcols, float dest[][dcols]);
+	uint size, float filter[][size][size], uint drows, uint dcols, 
+	float dest[][dcols]);
+
 void mul(uint rows, uint cols, float src[][cols], uint frows, uint fcols, 
 	float filter[][fcols], uint drows, uint dcols, float dest[][dcols]);
+
 void bias2d(uint rows, uint cols, float src[][cols], float bias, uint drows,
 	uint dcols, float dest[][dcols]);
+
 void bias1d(uint rows, float src[], float bias[], float dest[]);
-void pool(uint rows, uint cols, float src[][cols], uint frows, uint fcols,
-	uint stride, uint drows, uint dcols, float dest[][dcols]);
+
+void pool(uint rows, uint cols, float src[][cols], uint size, uint stride, 
+	uint drows, uint dcols, float dest[][dcols]);
+
 void relu(uint rows, float src[], float dest[]);
