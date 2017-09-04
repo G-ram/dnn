@@ -1,5 +1,6 @@
 #include "dnn.h"
 #include <stdio.h>
+#include <math.h>
 
 int main() {
 	infer(input);
@@ -10,6 +11,15 @@ float infer(float src[28][28]) {
 	float inter1[20][24][24];
 	float inter2[20][12][12];
 	conv1_layer(src, inter1);
+	// for(uint i = 0; i < 20; i ++) {
+		for(uint j = 0; j < 24; j ++) {
+			for(uint k = 0; k < 24; k ++) {
+				printf("%f ", inter1[0][j][k]);
+			}
+			printf("\n");
+		}
+		printf("Got Here\n");
+	// }
 	pool1_layer(inter1, inter2);
 	float inter3[100][8][8];
 	float inter4[100][4][4];
@@ -21,6 +31,7 @@ float infer(float src[28][28]) {
 	relu_layer(inter5, inter6);
 	float dest[10];
 	pred_layer(inter6, dest);
+	softmax_layer(dest, dest);
 	for(uint i = 0; i < 10; i ++) {
 		printf("Output: %d => %f\n", i, dest[i]);
 	}
@@ -57,23 +68,19 @@ void pool2_layer(float src[100][8][8], float dest[100][4][4]){
 
 void fc3_layer(float src[100][4][4], float dest[500]) {
 	// First we need to collapse src to a 1D vector
-	float inter1[100 * 4 * 4][1];
+	float inter1[100 * 4 * 4];
 	for(uint i = 0; i < 100; i ++) {
 		for(uint j = 0; j < 4; j ++) {
 			for(uint k = 0; k < 4; k ++) {
-				inter1[i * 4 * 4 + 4 * j + k][0] = src[i][j][k];
+				inter1[i * 4 * 4 + 4 * j + k] = src[i][j][k];
 			}
 		}
 	}
 
-	float inter2[500][1];
-	mul(1600, 1, inter1, 500, 1600, fc3_w, 500, 1, inter2);
+	float inter2[500];
+	mul_vector(500, 1600, fc3_w, inter1, inter2);
 
-	float inter3[500];
-	for(uint i = 0; i < 500; i ++) {
-		inter3[i] = inter2[i][0]; 
-	}
-	bias1d(500, inter3, fc3_b, dest);
+	bias1d(500, inter2, fc3_b, dest);
 }
 
 void relu_layer(float src[500], float dest[500]) {
@@ -81,19 +88,23 @@ void relu_layer(float src[500], float dest[500]) {
 }
 
 void pred_layer(float src[500], float dest[10]) {
-	float inter1[500][1];
-	for(uint i = 0; i < 500; i ++) {
-		inter1[i][0] = src[i];
-	}
+	float inter[10];
+	mul_vector(10, 500, pred_w, src, inter);
 
-	float inter2[10][1];
-	mul(500, 1, inter1, 10, 500, pred_w, 500, 1, inter2);
+	bias1d(10, inter, pred_b, dest);
+}
 
-	float inter3[10];
+void softmax_layer(float src[10], float dest[10]) {
+	float inter[10];
+	float sum = 0.;
 	for(uint i = 0; i < 10; i ++) {
-		inter3[i] = inter2[i][0]; 
+		float v = powf(2.71828, src[i]);
+		inter[i] = v;
+		sum += v;
 	}
-	bias1d(10, inter3, pred_b, dest);
+	for(uint i = 0; i < 10; i ++) {
+		dest[i] = inter[i] / sum;
+	}
 }
 
 void convolve2d(uint rows, uint cols, float src[][cols], uint size, 
@@ -135,22 +146,21 @@ void convolve3d(uint rows, uint cols, uint layers, float src[][rows][cols],
 	}
 }
 
-void mul(uint rows, uint cols, float src[][cols], uint frows, uint fcols, 
-	float filter[][fcols], uint drows, uint dcols, float dest[][dcols]) {
-	for(uint i = 0; i < cols; i ++) {
-		for(uint j = 0; j < fcols; j ++) {
-			for(uint k = 0; k < frows; k++) {
-				dest[i][j] += src[i][k] * filter[k][j];
-			}
+void mul_vector(uint rows, uint cols, float src[][cols], float filter[], 
+	float dest[]) {
+	for(uint i = 0; i < rows; i ++) {
+		dest[i] = 0;
+		for(uint j = 0; j < cols; j ++) {
+			dest[i] += src[i][j] * filter[j];
 		}
 	}
 }
 
-void bias2d(uint rows, uint cols, float src[][cols], float bias2d, uint drows, 
+void bias2d(uint rows, uint cols, float src[][cols], float bias, uint drows, 
 	uint dcols, float dest[][dcols]) {
 	for(uint i = 0; i < cols; i ++) {
 		for(uint j = 0; j < rows; j ++) {
-			dest[i][j] += bias2d;
+			dest[i][j] = src[i][j] + bias;
 		}
 	}
 }
@@ -163,9 +173,9 @@ void bias1d(uint rows, float src[], float bias[], float dest[]) {
 
 void pool(uint rows, uint cols, float src[][cols], uint size, 
 	uint stride, uint drows, uint dcols, float dest[][dcols]) {
-	for(uint i = 0; i < dcols; i += stride) {
-		for(uint j = 0; j < drows; j += stride) {
-			float max = -1.0;
+	for(uint i = 0; i < rows; i += stride) {
+		for(uint j = 0; j < cols; j += stride) {
+			float max = -5.0;
 			for(uint k = 0; k < size; k ++) {
 				for(uint l = 0; l < size; l ++) {
 					if(max < src[i + k][j + l]) {
