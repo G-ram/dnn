@@ -11,14 +11,15 @@ float infer(float src[28][28]) {
 	float inter1[20][24][24];
 	float inter2[20][12][12];
 	conv1_layer(src, inter1);
-	// for(uint i = 0; i < 20; i ++) {
+		// for(uint i = 0; i < 20; i ++) {
 		for(uint j = 0; j < 24; j ++) {
 			for(uint k = 0; k < 24; k ++) {
-				printf("%f ", inter1[0][j][k]);
+				printf("%f ", inter1[3][j][k]);
+				if((k + 1) % 4 == 0)
+					printf("\n");
 			}
-			printf("\n");
 		}
-		printf("Got Here\n");
+		printf("\n");
 	// }
 	pool1_layer(inter1, inter2);
 	float inter3[100][8][8];
@@ -32,9 +33,16 @@ float infer(float src[28][28]) {
 	float dest[10];
 	pred_layer(inter6, dest);
 	softmax_layer(dest, dest);
+	float max = 0.;
+	uint idx = 0;
 	for(uint i = 0; i < 10; i ++) {
 		printf("Output: %d => %f\n", i, dest[i]);
+		if(max < dest[i]) {
+			idx = i;
+			max = dest[i];
+		}
 	}
+	printf("Label: %d\n", idx);
 	return 0.0;
 }
 
@@ -109,18 +117,16 @@ void softmax_layer(float src[10], float dest[10]) {
 
 void convolve2d(uint rows, uint cols, float src[][cols], uint size, 
 	float filter[][size], uint drows, uint dcols, float dest[][dcols]) {
-	int k_half = size / 2;
-	for(uint i = 0; i < dcols; i ++) {
-		for(uint j = 0; j < drows; j ++) {
+	// int k_half = size / 2;
+	for(uint i = 0; i < drows; i ++) {
+		for(uint j = 0; j < dcols; j ++) {
 			dest[i][j] = 0;
-			for(int k = -k_half; k <= k_half; k ++) {
-				int frow_idx = k + k_half;
+			for(int k = 0; k < size; k ++) {
 				int irow_idx = i + k;
-				for(int l = -k_half; l <= k_half; l ++) {
-					int fcol_idx = l + k_half;
-					int icol_idx = i + k;
+				for(int l = 0; l < size; l ++) {
+					int icol_idx = j + l;
 					if(irow_idx >= 0 && irow_idx < rows && icol_idx >= 0 && icol_idx < cols)
-						dest[i][j] += src[irow_idx][icol_idx] * filter[frow_idx][fcol_idx];
+						dest[i][j] += src[irow_idx][icol_idx] * filter[k][l];
 				}
 			}
 		}
@@ -139,7 +145,7 @@ void convolve3d(uint rows, uint cols, uint layers, float src[][rows][cols],
 		float inter[drows][dcols];
 		convolve2d(rows, cols, src[i], size, filter[i], drows, dcols, inter);
 		for(uint j = 0; j < drows; j ++) {
-			for(uint k = 0; k < cols; k ++) {
+			for(uint k = 0; k < dcols; k ++) {
 				dest[j][k] += inter[j][k];
 			}
 		}
@@ -175,7 +181,7 @@ void pool(uint rows, uint cols, float src[][cols], uint size,
 	uint stride, uint drows, uint dcols, float dest[][dcols]) {
 	for(uint i = 0; i < rows; i += stride) {
 		for(uint j = 0; j < cols; j += stride) {
-			float max = -5.0;
+			float max = src[i][j];
 			for(uint k = 0; k < size; k ++) {
 				for(uint l = 0; l < size; l ++) {
 					if(max < src[i + k][j + l]) {
