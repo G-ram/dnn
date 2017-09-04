@@ -275,13 +275,17 @@ def writeHeader(name, *args):
     f.close()
 
 
-writeHeader("conv1.h", "conv1_w", "conv1_b")
-writeHeader("conv2.h", "conv2_w", "conv2_b")
-writeHeader("fc3.h", "fc3_w", "fc3_b")
-writeHeader("pred.h", "pred_w", "pred_b")
+# writeHeader("conv1.h", "conv1_w", "conv1_b")
+# writeHeader("conv2.h", "conv2_w", "conv2_b")
+# writeHeader("fc3.h", "fc3_w", "fc3_b")
+# writeHeader("pred.h", "pred_w", "pred_b")
 # print workspace.FetchBlob('data')[0][0]
+# print workspace.FetchBlob("conv1").shape
 # print workspace.FetchBlob("conv1")[0][0]
-print workspace.FetchBlob("conv1_w")
+# print workspace.FetchBlob("conv1_w").shape
+# print workspace.FetchBlob("conv1_w")[0][0]
+# print workspace.FetchBlob("conv1_w").shape
+# print workspace.FetchBlob("conv1_w")[0][0]
 
 # Continue
 pyplot.plot(test_accuracy, 'r')
@@ -317,6 +321,7 @@ predict_net = pe.prepare_prediction_net(os.path.join(root_folder, "mnist_model.m
 print("The blobs in the workspace after loading the model: {}".format(workspace.Blobs()))
 
 # feed the previously saved data to the loaded model
+print blob.shape
 workspace.FeedBlob("data", blob)
 
 # predict
