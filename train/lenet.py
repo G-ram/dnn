@@ -279,6 +279,9 @@ writeHeader("conv1.h", "conv1_w", "conv1_b")
 writeHeader("conv2.h", "conv2_w", "conv2_b")
 writeHeader("fc3.h", "fc3_w", "fc3_b")
 writeHeader("pred.h", "pred_w", "pred_b")
+# print workspace.FetchBlob('data')[0][0]
+# print workspace.FetchBlob("conv1")[0][0]
+print workspace.FetchBlob("conv1_w")
 
 # Continue
 pyplot.plot(test_accuracy, 'r')
