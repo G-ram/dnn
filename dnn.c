@@ -11,15 +11,15 @@ float infer(float src[28][28]) {
 	float inter1[20][24][24];
 	float inter2[20][12][12];
 	conv1_layer(src, inter1);
-		// for(uint i = 0; i < 20; i ++) {
-		for(uint j = 0; j < 24; j ++) {
-			for(uint k = 0; k < 24; k ++) {
-				printf("%f ", inter1[3][j][k]);
-				if((k + 1) % 4 == 0)
-					printf("\n");
-			}
-		}
-		printf("\n");
+	// for(uint i = 0; i < 20; i ++) {
+	// for(uint j = 0; j < 24; j ++) {
+	// 	for(uint k = 0; k < 24; k ++) {
+	// 		printf("%f ", inter1[3][j][k]);
+	// 		if((k + 1) % 4 == 0)
+	// 			printf("\n");
+	// 	}
+	// }
+	// printf("\n");
 	// }
 	pool1_layer(inter1, inter2);
 	float inter3[100][8][8];
@@ -117,7 +117,6 @@ void softmax_layer(float src[10], float dest[10]) {
 
 void convolve2d(uint rows, uint cols, float src[][cols], uint size, 
 	float filter[][size], uint drows, uint dcols, float dest[][dcols]) {
-	// int k_half = size / 2;
 	for(uint i = 0; i < drows; i ++) {
 		for(uint j = 0; j < dcols; j ++) {
 			dest[i][j] = 0;
