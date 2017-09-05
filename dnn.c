@@ -3,24 +3,20 @@
 #include <math.h>
 
 int main() {
-	infer(input);
+	uint correct = 0;
+	for(uint i = 0; i < num; i ++) {
+		uint label = infer(input[i]);
+		if(label == labels[i])
+			correct++;
+	}
+	printf("Correct: %d / %d Percentage: %f \n", correct, num, (float) correct / (float) num * 100.);
 	return 0;
 }
 
-float infer(float src[28][28]) {
+uint infer(float src[28][28]) {
 	float inter1[20][24][24];
 	float inter2[20][12][12];
 	conv1_layer(src, inter1);
-	// for(uint i = 0; i < 20; i ++) {
-	// for(uint j = 0; j < 24; j ++) {
-	// 	for(uint k = 0; k < 24; k ++) {
-	// 		printf("%f ", inter1[3][j][k]);
-	// 		if((k + 1) % 4 == 0)
-	// 			printf("\n");
-	// 	}
-	// }
-	// printf("\n");
-	// }
 	pool1_layer(inter1, inter2);
 	float inter3[100][8][8];
 	float inter4[100][4][4];
@@ -32,18 +28,17 @@ float infer(float src[28][28]) {
 	relu_layer(inter5, inter6);
 	float dest[10];
 	pred_layer(inter6, dest);
-	softmax_layer(dest, dest);
+	// softmax_layer(dest, dest);
 	float max = 0.;
 	uint idx = 0;
 	for(uint i = 0; i < 10; i ++) {
-		printf("Output: %d => %f\n", i, dest[i]);
 		if(max < dest[i]) {
 			idx = i;
 			max = dest[i];
 		}
 	}
 	printf("Label: %d\n", idx);
-	return 0.0;
+	return idx;
 }
 
 void conv1_layer(float src[28][28], float dest[20][24][24]){
@@ -156,7 +151,7 @@ void mul_vector(uint rows, uint cols, float src[][cols], float filter[],
 	for(uint i = 0; i < rows; i ++) {
 		dest[i] = 0;
 		for(uint j = 0; j < cols; j ++) {
-			dest[i] += src[i][j] * filter[j];
+			dest[i] += src[i][j] * filter[j] * 256.;
 		}
 	}
 }

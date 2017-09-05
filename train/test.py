@@ -104,7 +104,7 @@ data = np.array([[[[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
 		0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
 		0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
 		0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]]]*64, dtype=np.float32) 
-print data.shape
+
 def writeHeader(name, *args):
     f = open("headers/" + name, "w+")
     str_var = ""
@@ -124,15 +124,18 @@ def writeHeader(name, *args):
     f.close()
 
 
-writeHeader("conv1.h", "conv1_w", "conv1_b")
-writeHeader("conv2.h", "conv2_w", "conv2_b")
-writeHeader("fc3.h", "fc3_w", "fc3_b")
-writeHeader("pred.h", "pred_w", "pred_b")
+# writeHeader("conv1.h", "conv1_w", "conv1_b")
+# writeHeader("conv2.h", "conv2_w", "conv2_b")
+# writeHeader("fc3.h", "fc3_w", "fc3_b")
+# writeHeader("pred.h", "pred_w", "pred_b")
 workspace.FeedBlob("data", data)
 
 # predict
 workspace.RunNetOnce(predict_net)
 softmax = workspace.FetchBlob("softmax")
+# print workspace.FetchBlob("conv2_w").shape
+# print workspace.FetchBlob("conv2")[0][0]
+print workspace.FetchBlob("conv1")[0][3]
 
 # the first letter should be predicted correctly
 output = [str(i) + " : " + str(round(x, 2)) for i, x in enumerate(softmax[0])]
