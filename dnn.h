@@ -1,8 +1,8 @@
-#include "conv1.h"
-#include "conv2.h"
-#include "fc3.h"
-#include "pred.h"
-#include "input.h"
+#include "headers/conv1.h"
+#include "headers/conv2.h"
+#include "headers/fc3.h"
+#include "headers/pred.h"
+#include "headers/input.h"
 
 #define IMG_WIDTH 28
 #define IMG_HEIGHT 28
