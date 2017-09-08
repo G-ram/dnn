@@ -7,9 +7,10 @@ from tqdm import tqdm
 
 from caffe2.python.modeling import initializers
 from caffe2.python.modeling.parameter_info import ParameterTags
+from caffe2.python.modeling.initializers import Initializer
 from caffe2.python import core, model_helper, workspace, brew
 from scipy import stats
-from scipy import sparse
+import pickle
 
 # This section preps your image and test set in a lmdb database
 def DownloadResource(url, path):
@@ -35,7 +36,7 @@ def AddInput(model, batch_size, db, db_type):
     return data, label
 
 def custom_FC(
-    model, op_call, blob_in, blob_out, mask, dim_in, dim_out, weight_init=None,
+    model, op_call, blob_in, blob_out, dim_in, dim_out, weight_init=None,
         bias_init=None, WeightInitializer=None, BiasInitializer=None,
         enable_tensor_core=False, **kwargs
 ):
@@ -60,6 +61,15 @@ def custom_FC(
         initializer=WeightInitializer,
         tags=ParameterTags.WEIGHT
     )
+
+    mask_init = np.ones((500, 1600), dtype=np.float32)
+    mask = model.create_param(
+        param_name=blob_out + '_m',
+        shape=[dim_out, dim_in],
+        initializer=Initializer(operator_name='GivenTensorFill', values=mask_init),
+        tags=ParameterTags.COMPUTED_PARAM
+    )
+
     bias = model.create_param(
         param_name=blob_out + '_b',
         shape=[dim_out, ],
@@ -74,8 +84,8 @@ def custom_FC(
     blob_inter = model.net.Mul([mask,  weight])
     return op_call([blob_in, blob_inter, bias], blob_out, **kwargs)
 
-def fc_sp(model, blob_in, blob_out, mask, *args, **kwargs):
-    return custom_FC(model, model.net.FC, blob_in, blob_out, mask, *args, **kwargs)
+def fc_sp(model, blob_in, blob_out, *args, **kwargs):
+    return custom_FC(model, model.net.FC, blob_in, blob_out, *args, **kwargs)
 
 def AddLeNetModel(model, data):
     conv1 = brew.conv(model, data, 'conv1', dim_in=1, dim_out=20, kernel=5)
@@ -88,16 +98,7 @@ def AddLeNetModel(model, data):
     # 50 * 4 * 4 stands for dim_out from previous layer multiplied by the image size
     # fc3 = brew.fc(model, pool2, 'fc3', dim_in=100 * 4 * 4, dim_out=500)
 
-    mask_init = np.ones((500, 1600), dtype=np.float32)
-    # print mask_init
-    mask = model.param_init_net.GivenTensorFill(
-        [],
-        "pr_m",
-        shape=[500, 1600],
-        values=mask_init,
-    )
-
-    pr = brew.fc_sp(model, pool2, 'pr', mask, dim_in=100 * 4 * 4, dim_out=500)
+    pr = brew.fc_sp(model, pool2, 'pr', dim_in=100 * 4 * 4, dim_out=500)
 
     relu = brew.relu(model, pr, pr)
     pred = brew.fc(model, relu, 'pred', 500, 10)
@@ -141,24 +142,6 @@ def AddBookkeepingOperators(model):
     # statistics of the parameter, such as mean, std, min and max.
     for param in model.params:
         model.Summarize(param, [], to_file=1)
-
-def writeHeader(name, *args):
-    f = open("headers/" + name, "w+")
-    str_var = ""
-    for arg in args:
-        arr = workspace.FetchBlob(arg)
-        min_arr = np.squeeze(arr)
-        print min_arr.shape
-        str_arr = ",".join(map(str, min_arr.tolist()))
-        str_arr = str(str_arr).replace('[', '{').replace(']', '}').replace(',', ', ').replace(',  ', ', ')
-        str_dim = ""
-        for dim in min_arr.shape:
-            str_dim += '[' + str(dim) + ']'
-        str_var += "float " + arg + str_dim + " = {" + str_arr + "};\n\n"
-        # print str_var
-
-    f.write(str_var)
-    f.close()
 
 def main():
     brew.Register(fc_sp)
@@ -249,7 +232,7 @@ def main():
     # creating the network
     workspace.CreateNet(train_model.net, overwrite=True)
     # set the number of iterations and track the accuracy & loss
-    init_train_iters = 150
+    init_train_iters = 200
     secondary_train_iters = 100
     test_iters = 100
     accuracy = np.zeros(init_train_iters + secondary_train_iters)
@@ -261,17 +244,20 @@ def main():
         loss[i] = workspace.FetchBlob('loss')
 
     # Mask
-    threshold = 0.043
+    threshold = 0.045
     weights = workspace.FetchBlob("pr_w")
     masked_weights = stats.threshold(weights, threshmin=-threshold, threshmax=threshold, newval=1.0)
     masked_weights[masked_weights != 1.0] = 0.0
+    f = open('files/mask.summary', 'w+')
+    pickle.dump(masked_weights, f)
+    f.close()
     nonzero = float(np.count_nonzero(masked_weights))
     total = float(masked_weights.size)
     print "Nonzero: ", nonzero, " Total:", total, " NonZero / Total: ", nonzero / total
 
     # Secondary Training
+    workspace.FeedBlob("pr_m", masked_weights)
     for i in tqdm(range(secondary_train_iters)):
-        workspace.FeedBlob("pr_m", masked_weights)
         workspace.RunNet(train_model.net)
         accuracy[i + init_train_iters] = workspace.FetchBlob('accuracy')
         loss[i + init_train_iters] = workspace.FetchBlob('loss')
@@ -279,44 +265,19 @@ def main():
     # run a test pass on the test net
     workspace.RunNetOnce(test_model.param_init_net)
     workspace.CreateNet(test_model.net, overwrite=True)
-    workspace.FeedBlob("pr_m", masked_weights)
     test_accuracy = np.zeros(test_iters)
+
+    workspace.FeedBlob("pr_m", masked_weights)
     for i in tqdm(range(test_iters)):
         workspace.RunNet(test_model.net.Proto().name)
         test_accuracy[i] = workspace.FetchBlob('accuracy')
     # After the execution is done, let's plot the values.
     print('test_accuracy: %f' % test_accuracy.mean())
 
-    sparse_weights = sparse.csr_matrix(np.multiply(masked_weights, workspace.FetchBlob("pr_w")))
-
-    print sparse_weights.indptr.shape
-    print sparse_weights.indices.shape
-    print sparse_weights.data.shape
-
-    f = open("headers/pr_w.h", "w+")
-    str_var = ""
-    mats = [(sparse_weights.data, "pr_w"), (sparse_weights.indices, "pr_idx"), (sparse_weights.indptr, "pr_ptr")]
-    for arr in mats:
-        min_arr = np.squeeze(arr[0])
-        print min_arr.shape
-        str_arr = ",".join(map(str, min_arr.tolist()))
-        str_arr = str(str_arr).replace('[', '{').replace(']', '}').replace(',', ', ').replace(',  ', ', ')
-        str_dim = ""
-        for dim in min_arr.shape:
-            str_dim += '[' + str(dim) + ']'
-        str_var += "unsigned short " + arr[1] + str_dim + " = {" + str_arr + "};\n\n"
-        # print str_var
-
-    f.write(str_var)
-    f.close()
-
-    writeHeader("pr.h", "pr_b")
-
-
     pe_meta = pe.PredictorExportMeta(
         predict_net=deploy_model.net.Proto(),
         parameters=[str(b) for b in deploy_model.params],
-        inputs=["data"],
+        inputs=["data", "pr_m"],
         outputs=["softmax"],
     )
 

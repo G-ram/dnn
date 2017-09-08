@@ -2,7 +2,7 @@ width = 28
 height = 28
 nth = 4
 def main():
-	f = open("train-images-idx3-ubyte", 'rb')
+	f = open("test-images", 'rb')
 	raw = f.read().encode('hex')
 	chunks = [raw[i : i + 2] for i in range(0, len(raw), 2)]
 	pixels = chunks[16:]
@@ -30,7 +30,7 @@ def main():
 	output = "float input[28][28] = " + output[:-5] + "}};"
 	print output
 
-	f = open("train-labels-idx1-ubyte", 'rb')
+	f = open("test-labels", 'rb')
 	raw = f.read().encode('hex')
 	chunks = [raw[i : i + 2] for i in range(0, len(raw), 2)]
 	labels = chunks[8:]

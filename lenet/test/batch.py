@@ -1,6 +1,6 @@
 width = 28
 height = 28
-offset = 0 # imgs to start into the file
+offset = 4 # imgs to start into the file
 num = 20 # number of imgs to take
 def main():
 	f = open("test-images", 'rb')
@@ -19,10 +19,10 @@ def main():
 		output += "{{"
 		for p in data[width * height * i: width * height * (i + 1)]:
 			if new_arr == 28:
-				output += str(float(int(p, 16)) * 1 / .256) + "}, {"
+				output += str(float(int(p, 16)) * 1. / 256.) + "}, {"
 				new_arr = 0
 			else:
-				output += str(float(int(p, 16)) * 1 / .256) + ", "
+				output += str(float(int(p, 16)) * 1. / 256.) + ", "
 
 			if carriage == 9:
 				output += "\n"
@@ -53,9 +53,10 @@ def main():
 
 	out_num = "unsigned int num = " + str(num) + ";\n\n"
 
-	f = open("headers/input.h", "w+")
+	f = open("../headers/input.h", "w+")
 	out = out_num + out_labels + out_input
 	f.write(out)
+	f.close()
 
 if __name__ == "__main__":
 	main()

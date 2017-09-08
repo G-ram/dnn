@@ -8,8 +8,11 @@ int main() {
 		uint label = infer(input[i]);
 		if(label == labels[i])
 			correct++;
+
+		printf("Label: %d Actual: %d\n", label, labels[i]);
 	}
-	printf("Correct: %d / %d Percentage: %f \n", correct, num, (float) correct / (float) num * 100.);
+	printf("Correct: %d / %d Percentage: %f \n", correct, num, 
+		(float) correct / (float) num * 100.);
 	return 0;
 }
 
@@ -17,6 +20,7 @@ uint infer(float src[28][28]) {
 	float inter1[20][24][24];
 	float inter2[20][12][12];
 	conv1_layer(src, inter1);
+
 	pool1_layer(inter1, inter2);
 	float inter3[100][8][8];
 	float inter4[100][4][4];
@@ -24,7 +28,7 @@ uint infer(float src[28][28]) {
 	pool2_layer(inter3, inter4);
 	float inter5[500];
 	float inter6[500];
-	fc3_layer(inter4, inter5);
+	pr_layer(inter4, inter5);
 	relu_layer(inter5, inter6);
 	float dest[10];
 	pred_layer(inter6, dest);
@@ -36,8 +40,8 @@ uint infer(float src[28][28]) {
 			idx = i;
 			max = dest[i];
 		}
+		// printf("%d => %f\n", i, dest[i]);
 	}
-	printf("Label: %d\n", idx);
 	return idx;
 }
 
@@ -45,13 +49,13 @@ void conv1_layer(float src[28][28], float dest[20][24][24]){
 	for(uint i = 0; i < 20; i ++) {
 		float inter[24][24];
 		convolve2d(28, 28, src, 5, conv1_w[i], 24, 24, inter);
-		bias2d(24, 24, inter, conv1_b[i], 24, 24, dest[i]);
+		bias2d(24, 24, inter, conv1_b[i], dest[i]);
 	}
 }
 
 void pool1_layer(float src[20][24][24], float dest[20][12][12]){
 	for(uint i = 0; i < 20; i ++) {
-		pool(24, 24, src[i], 2, 2, 12, 12, dest[i]);
+		pool(24, 24, src[i], 2, 2, dest[i]);
 	}
 }
 
@@ -59,17 +63,17 @@ void conv2_layer(float src[20][12][12], float dest[100][8][8]){
 	for(uint i = 0; i < 100; i ++) {
 		float inter[8][8];
 		convolve3d(12, 12, 20, src, 5, conv2_w[i], 8, 8, inter);
-		bias2d(8, 8, inter, conv2_b[i], 8, 8, dest[i]);
+		bias2d(8, 8, inter, conv2_b[i], dest[i]);
 	}
 }
 
 void pool2_layer(float src[100][8][8], float dest[100][4][4]){
 	for(uint i = 0; i < 100; i ++) {
-		pool(8, 8, src[i], 2, 2, 4, 4, dest[i]);
+		pool(8, 8, src[i], 2, 2, dest[i]);
 	}
 }
 
-void fc3_layer(float src[100][4][4], float dest[500]) {
+void pr_layer(float src[100][4][4], float dest[500]) {
 	// First we need to collapse src to a 1D vector
 	float inter1[100 * 4 * 4];
 	for(uint i = 0; i < 100; i ++) {
@@ -81,9 +85,10 @@ void fc3_layer(float src[100][4][4], float dest[500]) {
 	}
 
 	float inter2[500];
-	mul_vector(500, 1600, fc3_w, inter1, inter2);
+	sparse_mul_vector(500, pr_w, pr_idx, pr_ptr, inter1, inter2);
+	// mul_vector(500, 1600, fc3_w, inter1, inter2);
 
-	bias1d(500, inter2, fc3_b, dest);
+	bias1d(500, inter2, pr_b, dest);
 }
 
 void relu_layer(float src[500], float dest[500]) {
@@ -146,18 +151,33 @@ void convolve3d(uint rows, uint cols, uint layers, float src[][rows][cols],
 	}
 }
 
-void mul_vector(uint rows, uint cols, float src[][cols], float filter[], 
+void mul_vector(uint rows, uint cols, float mat[][cols], float vector[], 
 	float dest[]) {
 	for(uint i = 0; i < rows; i ++) {
 		dest[i] = 0;
 		for(uint j = 0; j < cols; j ++) {
-			dest[i] += src[i][j] * filter[j] * 256.;
+			dest[i] += mat[i][j] * vector[j];
 		}
 	}
 }
 
-void bias2d(uint rows, uint cols, float src[][cols], float bias, uint drows, 
-	uint dcols, float dest[][dcols]) {
+void sparse_mul_vector(uint rows, float mat_data[], uint mat_idx[], 
+	uint mat_ptr[], float vector[], float dest[]) {
+	for(uint i = 0; i < rows; i++) {
+		dest[i] = 0.;
+	}
+
+	uint current_row = 0;
+	uint current_col = 0;
+	for(uint i = 0; i < rows; i ++) {
+		for(uint j = mat_ptr[i]; j < mat_ptr[i + 1]; j ++) {
+			dest[i] += vector[mat_idx[j]] * mat_data[j];
+		}
+	}
+}
+
+void bias2d(uint rows, uint cols, float src[][cols], float bias, 
+	float dest[][cols]) {
 	for(uint i = 0; i < cols; i ++) {
 		for(uint j = 0; j < rows; j ++) {
 			dest[i][j] = src[i][j] + bias;
@@ -171,8 +191,8 @@ void bias1d(uint rows, float src[], float bias[], float dest[]) {
 	}
 }
 
-void pool(uint rows, uint cols, float src[][cols], uint size, 
-	uint stride, uint drows, uint dcols, float dest[][dcols]) {
+void pool(uint rows, uint cols, float src[][cols], uint size, uint stride,
+	float dest[][cols / stride]) {
 	for(uint i = 0; i < rows; i += stride) {
 		for(uint j = 0; j < cols; j += stride) {
 			float max = src[i][j];
