@@ -9,6 +9,7 @@ from caffe2.python.modeling import initializers
 from caffe2.python.modeling.parameter_info import ParameterTags
 from caffe2.python import core, model_helper, workspace, brew
 from scipy import stats
+from scipy import sparse
 
 # This section preps your image and test set in a lmdb database
 def DownloadResource(url, path):
@@ -141,6 +142,24 @@ def AddBookkeepingOperators(model):
     for param in model.params:
         model.Summarize(param, [], to_file=1)
 
+def writeHeader(name, *args):
+    f = open("headers/" + name, "w+")
+    str_var = ""
+    for arg in args:
+        arr = workspace.FetchBlob(arg)
+        min_arr = np.squeeze(arr)
+        print min_arr.shape
+        str_arr = ",".join(map(str, min_arr.tolist()))
+        str_arr = str(str_arr).replace('[', '{').replace(']', '}').replace(',', ', ').replace(',  ', ', ')
+        str_dim = ""
+        for dim in min_arr.shape:
+            str_dim += '[' + str(dim) + ']'
+        str_var += "float " + arg + str_dim + " = {" + str_arr + "};\n\n"
+        # print str_var
+
+    f.write(str_var)
+    f.close()
+
 def main():
     brew.Register(fc_sp)
     # If you would like to see some really detailed initializations,
@@ -230,8 +249,9 @@ def main():
     # creating the network
     workspace.CreateNet(train_model.net, overwrite=True)
     # set the number of iterations and track the accuracy & loss
-    init_train_iters = 200
-    secondary_train_iters = 50
+    init_train_iters = 150
+    secondary_train_iters = 100
+    test_iters = 100
     accuracy = np.zeros(init_train_iters + secondary_train_iters)
     loss = np.zeros(init_train_iters + secondary_train_iters)
     # Now, we will manually run the network for 200 iterations.
@@ -248,10 +268,10 @@ def main():
     nonzero = float(np.count_nonzero(masked_weights))
     total = float(masked_weights.size)
     print "Nonzero: ", nonzero, " Total:", total, " NonZero / Total: ", nonzero / total
-    workspace.FeedBlob("pr_m", masked_weights)
 
     # Secondary Training
     for i in tqdm(range(secondary_train_iters)):
+        workspace.FeedBlob("pr_m", masked_weights)
         workspace.RunNet(train_model.net)
         accuracy[i + init_train_iters] = workspace.FetchBlob('accuracy')
         loss[i + init_train_iters] = workspace.FetchBlob('loss')
@@ -260,12 +280,38 @@ def main():
     workspace.RunNetOnce(test_model.param_init_net)
     workspace.CreateNet(test_model.net, overwrite=True)
     workspace.FeedBlob("pr_m", masked_weights)
-    test_accuracy = np.zeros(100)
-    for i in tqdm(range(100)):
+    test_accuracy = np.zeros(test_iters)
+    for i in tqdm(range(test_iters)):
         workspace.RunNet(test_model.net.Proto().name)
         test_accuracy[i] = workspace.FetchBlob('accuracy')
     # After the execution is done, let's plot the values.
     print('test_accuracy: %f' % test_accuracy.mean())
+
+    sparse_weights = sparse.csr_matrix(np.multiply(masked_weights, workspace.FetchBlob("pr_w")))
+
+    print sparse_weights.indptr.shape
+    print sparse_weights.indices.shape
+    print sparse_weights.data.shape
+
+    f = open("headers/pr_w.h", "w+")
+    str_var = ""
+    mats = [(sparse_weights.data, "pr_w"), (sparse_weights.indices, "pr_idx"), (sparse_weights.indptr, "pr_ptr")]
+    for arr in mats:
+        min_arr = np.squeeze(arr[0])
+        print min_arr.shape
+        str_arr = ",".join(map(str, min_arr.tolist()))
+        str_arr = str(str_arr).replace('[', '{').replace(']', '}').replace(',', ', ').replace(',  ', ', ')
+        str_dim = ""
+        for dim in min_arr.shape:
+            str_dim += '[' + str(dim) + ']'
+        str_var += "unsigned short " + arr[1] + str_dim + " = {" + str_arr + "};\n\n"
+        # print str_var
+
+    f.write(str_var)
+    f.close()
+
+    writeHeader("pr.h", "pr_b")
+
 
     pe_meta = pe.PredictorExportMeta(
         predict_net=deploy_model.net.Proto(),
