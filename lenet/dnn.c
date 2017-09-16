@@ -25,38 +25,38 @@ uint infer(float src[28][28]) {
 	mat *b2 = &buf2;
 	b2->data = data2;
 
-	reshape(b2, 28, 28);
+	MAT_RESHAPE(b2, 28, 28);
 	for(uint i = 0; i < 28; i ++) {
 		for(uint j = 0; j < 28; j ++) {
-			set(b2, src[i][j], i, j);
+			MAT_SET(b2, src[i][j], i, j);
 		}
 	}
 
-	reshape(b1, 20, 24, 24);
+	MAT_RESHAPE(b1, 20, 24, 24);
 	conv1_layer(b2, b1);
 
-	reshape(b2, 20, 12, 12);
+	MAT_RESHAPE(b2, 20, 12, 12);
 	pool1_layer(b1, b2);
 
-	reshape(b1, 100, 8, 8);
+	MAT_RESHAPE(b1, 100, 8, 8);
 	conv2_layer(b2, b1);
 
-	reshape(b2, 100, 4, 4);
+	MAT_RESHAPE(b2, 100, 4, 4);
 	pool2_layer(b1, b2);
 
-	reshape(b1, 500);
+	MAT_RESHAPE(b1, 500);
 	pr_layer(b2, b1);
 
-	reshape(b2, 500);
+	MAT_RESHAPE(b2, 500);
 	relu_layer(b1, b2);
 
-	reshape(b1, 10);
+	MAT_RESHAPE(b1, 10);
 	pred_layer(b2, b1);
 
 	float max = 0.;
 	uint idx = 0;
 	for(uint i = 0; i < 10; i ++) {
-		float prob = get(b1, i);
+		float prob = MAT_GET(b1, i);
 		if(max < prob) {
 			idx = i;
 			max = prob;
@@ -71,22 +71,22 @@ void conv1_layer(mat *src, mat *dest){
 	mat it;
 	mat *inter = &it;
 	inter->data = data;
-	reshape(inter, 24, 24);
+	MAT_RESHAPE(inter, 24, 24);
 	for(uint i = 0; i < 20; i ++) {
 		convolve2d(src, 5, conv1_w[i], inter);
-		constrain(dest, i);
+		MAT_CONSTRAIN(dest, i);
 		bias2d(inter, conv1_b[i], dest);
-		unconstrain(dest);
+		MAT_UNCONSTRAIN(dest);
 	}
 }
 
 void pool1_layer(mat *src, mat *dest){
 	for(uint i = 0; i < 20; i ++) {
-		constrain(src, i);
-		constrain(dest, i);
+		MAT_CONSTRAIN(src, i);
+		MAT_CONSTRAIN(dest, i);
 		pool(src, 2, 2, dest);
-		unconstrain(src);
-		unconstrain(dest);
+		MAT_UNCONSTRAIN(src);
+		MAT_UNCONSTRAIN(dest);
 	}
 }
 
@@ -95,34 +95,34 @@ void conv2_layer(mat *src, mat *dest){
 	mat it;
 	mat *inter = &it;
 	inter->data = data;
-	reshape(inter, 8, 8);
+	MAT_RESHAPE(inter, 8, 8);
 	for(uint i = 0; i < 100; i ++) {
 		convolve3d(src, 5, conv2_w[i], inter);
-		constrain(dest, i);
+		MAT_CONSTRAIN(dest, i);
 		bias2d(inter, conv2_b[i], dest);
-		unconstrain(dest);
+		MAT_UNCONSTRAIN(dest);
 	}
 }
 
 void pool2_layer(mat *src, mat *dest){
 	for(uint i = 0; i < 100; i ++) {
-		constrain(src, i);
-		constrain(dest, i);
+		MAT_CONSTRAIN(src, i);
+		MAT_CONSTRAIN(dest, i);
 		pool(src, 2, 2, dest);
-		unconstrain(src);
-		unconstrain(dest);
+		MAT_UNCONSTRAIN(src);
+		MAT_UNCONSTRAIN(dest);
 	}
 }
 
 void pr_layer(mat *src, mat *dest) {
 	// First we need to collapse src to a 1D vector
-	reshape(src, 100 * 4 * 4);
+	MAT_RESHAPE(src, 100 * 4 * 4);
 
 	float data[500];
 	mat it;
 	mat *inter = &it;
 	inter->data = data;
-	reshape(inter, 500);
+	MAT_RESHAPE(inter, 500);
 	sparse_mul_vector(500, pr_w, pr_idx, pr_ptr, src, inter);
 
 	bias1d(inter, pr_b, dest);
@@ -137,29 +137,29 @@ void pred_layer(mat *src, mat *dest) {
 	mat it;
 	mat *inter = &it;
 	inter->data = data;
-	reshape(inter, 10);
+	MAT_RESHAPE(inter, 10);
 	mul_vector(10, 500, pred_w, src, inter);
 
 	bias1d(inter, pred_b, dest);
 }
 
 void convolve2d(mat *src, uint size, float filter[][size], mat *dest) {
-	uint rows = get_dim(src, 0);
-	uint cols = get_dim(src, 1);
-	uint drows = get_dim(dest, 0);
-	uint dcols = get_dim(dest, 1);
+	uint rows = MAT_GET_DIM(src, 0);
+	uint cols = MAT_GET_DIM(src, 1);
+	uint drows = MAT_GET_DIM(dest, 0);
+	uint dcols = MAT_GET_DIM(dest, 1);
 	for(uint i = 0; i < drows; i ++) {
 		for(uint j = 0; j < dcols; j ++) {
-			set(dest, 0, i, j);
+			MAT_SET(dest, 0, i, j);
 			for(int k = 0; k < size; k ++) {
 				int irow_idx = i + k;
 				for(int l = 0; l < size; l ++) {
 					int icol_idx = j + l;
 					if(irow_idx >= 0 && irow_idx < rows && icol_idx >= 0 && 
 						icol_idx < cols) {
-						float w = get(dest, i, j) + 
-							get(src, irow_idx, icol_idx) * filter[k][l];
-						set(dest, w, i, j);
+						float w = MAT_GET(dest, i, j) + 
+							MAT_GET(src, irow_idx, icol_idx) * filter[k][l];
+						MAT_SET(dest, w, i, j);
 					}
 				}
 			}
@@ -168,29 +168,29 @@ void convolve2d(mat *src, uint size, float filter[][size], mat *dest) {
 }
 
 void convolve3d(mat *src, uint size, float filter[][size][size], mat *dest) {
-	uint layers = get_dim(src, 0);
-	uint rows = get_dim(src, 1);
-	uint cols = get_dim(src, 2);
-	uint drows = get_dim(dest, 0);
-	uint dcols = get_dim(dest, 1);
+	uint layers = MAT_GET_DIM(src, 0);
+	uint rows = MAT_GET_DIM(src, 1);
+	uint cols = MAT_GET_DIM(src, 2);
+	uint drows = MAT_GET_DIM(dest, 0);
+	uint dcols = MAT_GET_DIM(dest, 1);
 	for(uint i = 0; i < drows; i ++) {
 		for(uint j = 0; j < dcols; j ++) {
-			set(dest, 0, i, j);
+			MAT_SET(dest, 0, i, j);
 		}
 	}
 	float data[drows * dcols];
 	mat it;
 	mat *inter = &it;
 	inter->data = data;
-	reshape(inter, drows, dcols);
+	MAT_RESHAPE(inter, drows, dcols);
 	for(uint i = 0; i < layers; i++) {
-		constrain(src, i);
+		MAT_CONSTRAIN(src, i);
 		convolve2d(src, size, filter[i], inter);
-		unconstrain(src);
+		MAT_UNCONSTRAIN(src);
 		for(uint j = 0; j < drows; j ++) {
 			for(uint k = 0; k < dcols; k ++) {
-				float w = get(dest, j, k) + get(inter, j, k);
-				set(dest, w, j, k);
+				float w = MAT_GET(dest, j, k) + MAT_GET(inter, j, k);
+				MAT_SET(dest, w, j, k);
 			}
 		}
 	}
@@ -199,10 +199,10 @@ void convolve3d(mat *src, uint size, float filter[][size][size], mat *dest) {
 void mul_vector(uint rows, uint cols, float mat_data[][cols], mat *vector, 
 	mat *dest) {
 	for(uint i = 0; i < rows; i ++) {
-		set(dest, 0, i);
+		MAT_SET(dest, 0, i);
 		for(uint j = 0; j < cols; j ++) {
-			float w = get(dest, i) + mat_data[i][j] * get(vector, j); 
-			set(dest, w, i);
+			float w = MAT_GET(dest, i) + mat_data[i][j] * MAT_GET(vector, j); 
+			MAT_SET(dest, w, i);
 		}
 	}
 }
@@ -212,56 +212,56 @@ void sparse_mul_vector(uint rows, float mat_data[], uint mat_idx[],
 	uint current_row = 0;
 	uint current_col = 0;
 	for(uint i = 0; i < rows; i ++) {
-		set(dest, 0, i);
+		MAT_SET(dest, 0, i);
 		for(uint j = mat_ptr[i]; j < mat_ptr[i + 1]; j ++) {
-			float w = get(dest, i) + mat_data[j] * get(vector, mat_idx[j]); 
-			set(dest, w, i);
+			float w = MAT_GET(dest, i) + mat_data[j] * MAT_GET(vector, mat_idx[j]); 
+			MAT_SET(dest, w, i);
 		}
 	}
 }
 
 void bias2d(mat *src, float bias, mat *dest) {
-	uint rows = get_dim(src, 0); 
-	uint cols = get_dim(src, 1);
+	uint rows = MAT_GET_DIM(src, 0); 
+	uint cols = MAT_GET_DIM(src, 1);
 	for(uint i = 0; i < rows; i ++) {
 		for(uint j = 0; j < cols; j ++) {
-			set(dest, get(src, i, j) + bias, i, j);
+			MAT_SET(dest, MAT_GET(src, i, j) + bias, i, j);
 		}
 	}
 }
 
 void bias1d(mat *src, float bias[], mat *dest) {
-	uint rows = get_dim(src, 0); 
+	uint rows = MAT_GET_DIM(src, 0); 
 	for(uint i = 0; i < rows; i ++) {
-		set(dest, get(src, i) + bias[i], i);
+		MAT_SET(dest, MAT_GET(src, i) + bias[i], i);
 	}
 }
 
 void pool(mat *src, uint size, uint stride, mat *dest) {
-	uint rows = get_dim(src, 0);
-	uint cols = get_dim(src, 1);
+	uint rows = MAT_GET_DIM(src, 0);
+	uint cols = MAT_GET_DIM(src, 1);
 	for(uint i = 0; i < rows; i += stride) {
 		for(uint j = 0; j < cols; j += stride) {
-			float max = get(src, i, j);
+			float max = MAT_GET(src, i, j);
 			for(uint k = 0; k < size; k ++) {
 				for(uint l = 0; l < size; l ++) {
-					float val = get(src, i + k, j + l);
+					float val = MAT_GET(src, i + k, j + l);
 					if(max < val)
 						max = val;
 				}
 			}
-			set(dest, max, i / stride, j / stride);
+			MAT_SET(dest, max, i / stride, j / stride);
 		}
 	}
 }
 
 void relu(mat *src, mat *dest) {
-	uint rows = get_dim(src, 0);
+	uint rows = MAT_GET_DIM(src, 0);
 	float max = 0.0;
 	for(uint i = 0; i < rows; i ++) {
-		max = get(src, i);
-		set(dest, max, i);
+		max = MAT_GET(src, i);
+		MAT_SET(dest, max, i);
 		if(max < 0.0)
-			set(dest, 0.0, i);
+			MAT_SET(dest, 0.0, i);
 	}
 }
