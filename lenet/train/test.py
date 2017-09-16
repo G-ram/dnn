@@ -175,13 +175,18 @@ def compress(name):
 # compress("fc3")
 workspace.FeedBlob("data", data)
 
-f = open('files/mask.summary', 'r')
-masked_weights = pickle.load(f)
-workspace.FeedBlob("pr_m", masked_weights)
+f = open('files/pr_m.summary', 'r')
+fc_masked_weights = pickle.load(f)
+workspace.FeedBlob("pr_m", fc_masked_weights)
+
+f = open('files/pr_conv_m.summary', 'r')
+conv_masked_weights = pickle.load(f)
+workspace.FeedBlob("pr_conv_m", conv_masked_weights)
+
 # predict
 workspace.RunNetOnce(predict_net)
 softmax = workspace.FetchBlob("softmax")
-sparse_weights = sparse.csr_matrix(np.multiply(workspace.FetchBlob("pr_w"), masked_weights))
+sparse_weights = sparse.csr_matrix(np.multiply(workspace.FetchBlob("pr_w"), fc_masked_weights))
 
 #Dump out the headers
 str_var = ""
@@ -200,28 +205,48 @@ for arr in mats:
 # f.write(str_var)
 # f.close()
 
+# predict
+sparse_weights = sparse.csr_matrix(np.multiply(workspace.FetchBlob("pr_conv_w"), conv_masked_weights))
+
+#Dump out the headers
+str_var = ""
+mats = [(sparse_weights.data, "pr_conv_w"), (sparse_weights.indices, "pr_conv_idx"), (sparse_weights.indptr, "pr_conv_ptr")]
+for arr in mats:
+    min_arr = np.squeeze(arr[0])
+    str_arr = ",".join(map(str, min_arr.tolist()))
+    str_arr = str(str_arr).replace('[', '{').replace(']', '}').replace(',', ', ').replace(',  ', ', ')
+    str_dim = ""
+    for dim in min_arr.shape:
+        str_dim += '[' + str(dim) + ']'
+    str_var += "unsigned short " + arr[1] + str_dim + " = {" + str_arr + "};\n\n"
+
+# f = open("../headers/pr_conv_w.h", "w+")
+# f.write(str_var)
+# f.close()
+
 # writeHeader("pr.h", "pr_b")
 # writeHeader("conv1.h", "conv1_w", "conv1_b")
 # writeHeader("conv2.h", "conv2_w", "conv2_b")
 # writeHeader("pred.h", "pred_w", "pred_b")
-out_str = ""
-arr = workspace.FetchBlob('pr')[0]
-for j in range(len(arr)):
-	out_str += str(arr[j]) + " "
-	if (j + 1) % 6 == 0:
-		out_str += '\n'
 
-print out_str
+# out_str = ""
+# arr = workspace.FetchBlob('pr')[0]
+# for j in range(len(arr)):
+	# out_str += str(arr[j]) + " "
+	# if (j + 1) % 6 == 0:
+		# out_str += '\n'
 
-print "Calc Mul: ", np.count_nonzero(sparse_weights.data)
-print "PR Mul: ", np.count_nonzero(workspace.FetchBlob('mnist_deploy/Mul'))
-print "PR: ", np.count_nonzero(workspace.FetchBlob('pr')[0])
-inter = np.multiply(workspace.FetchBlob("pr_w"), masked_weights)
-inter = np.dot(inter, workspace.FetchBlob("pool2")[0].flatten())
-inter = np.add(inter, workspace.FetchBlob("pr_b"))
-inter[inter < 0] = 0.0
-print "CALC PR: ", np.count_nonzero(inter)
-print workspace.Blobs()
+# print out_str
+
+# print "Calc Mul: ", np.count_nonzero(sparse_weights.data)
+# print "PR Mul: ", np.count_nonzero(workspace.FetchBlob('mnist_deploy/Mul'))
+# print "PR: ", np.count_nonzero(workspace.FetchBlob('pr')[0])
+# inter = np.multiply(workspace.FetchBlob("pr_w"), masked_weights)
+# inter = np.dot(inter, workspace.FetchBlob("pool2")[0].flatten())
+# inter = np.add(inter, workspace.FetchBlob("pr_b"))
+# inter[inter < 0] = 0.0
+# print "CALC PR: ", np.count_nonzero(inter)
+# print workspace.Blobs()
 
 # the first letter should be predicted correctly
 output = [str(i) + " : " + str(round(x, 2)) for i, x in enumerate(softmax[0])]

@@ -5,8 +5,8 @@ INCLUDES = -I./headers
 CXXFLAGS = -Wall
 
 TARGET = dnn
-SRC = $(wildcard *.cpp)
-OBJECTS = $(SRC:.cpp=.o)
+SRC = $(wildcard *.c)
+OBJECTS = $(SRC:.c=.o)
 HEADERS = $(wildcard *.h)
 
 $(TARGET): $(OBJECTS)
