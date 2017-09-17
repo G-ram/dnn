@@ -2,7 +2,7 @@ CC = clang
 
 INCLUDES = -I./headers
 
-CXXFLAGS = -Wall
+CFLAGS = -Wall
 
 TARGET = dnn
 SRC = $(wildcard *.c)

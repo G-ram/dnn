@@ -169,8 +169,6 @@ void convolve2d(mat *src, uint size, float filter[][size], mat *dest) {
 
 void convolve3d(mat *src, uint size, float filter[][size][size], mat *dest) {
 	uint layers = MAT_GET_DIM(src, 0);
-	uint rows = MAT_GET_DIM(src, 1);
-	uint cols = MAT_GET_DIM(src, 2);
 	uint drows = MAT_GET_DIM(dest, 0);
 	uint dcols = MAT_GET_DIM(dest, 1);
 	for(uint i = 0; i < drows; i ++) {
@@ -209,8 +207,6 @@ void mul_vector(uint rows, uint cols, float mat_data[][cols], mat *vector,
 
 void sparse_mul_vector(uint rows, float mat_data[], uint mat_idx[], 
 	uint mat_ptr[], mat *vector, mat *dest) {
-	uint current_row = 0;
-	uint current_col = 0;
 	for(uint i = 0; i < rows; i ++) {
 		MAT_SET(dest, 0, i);
 		for(uint j = mat_ptr[i]; j < mat_ptr[i + 1]; j ++) {
