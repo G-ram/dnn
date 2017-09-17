@@ -50,10 +50,10 @@ uint _offset_calc(void *_m, uint len, uint idxs[]) {
 	return offset;
 }
 
-float mat_get(mat *m, uint len, uint idxs[]) {
+fixed mat_get(mat *m, uint len, uint idxs[]) {
 	return *(m->data + _offset_calc(m, len, idxs) + m->constraints_offset);
 }
 
-void mat_set(mat *m, float val, uint len, uint idxs[]) {
+void mat_set(mat *m, fixed val, uint len, uint idxs[]) {
 	*(m->data + _offset_calc(m, len, idxs) + m->constraints_offset) = val;
 }

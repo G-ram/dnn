@@ -62,7 +62,7 @@ def custom_FC(
         tags=ParameterTags.WEIGHT
     )
 
-    mask_init = np.ones((dim_out, dim_in), dtype=np.float32)
+    mask_init = np.ones((500, 1600), dtype=np.float32)
     mask = model.create_param(
         param_name=blob_out + '_m',
         shape=[dim_out, dim_in],
@@ -87,156 +87,16 @@ def custom_FC(
 def fc_sp(model, blob_in, blob_out, *args, **kwargs):
     return custom_FC(model, model.net.FC, blob_in, blob_out, *args, **kwargs)
 
-
-def custom_conv(model, is_nd, blob_in, blob_out, dim_in, dim_out, kernel, 
-    weight_init=None,
-    bias_init=None,
-    WeightInitializer=None,
-    BiasInitializer=None,
-    group=1,
-    transform_inputs=None,
-    use_cudnn=False,
-    order="NCHW",
-    cudnn_exhaustive_search=False,
-    ws_nbytes_limit=None,
-    **kwargs
-):
-    kernels = []
-    if is_nd:
-        if not isinstance(kernel, list):
-            kernels = [kernel]
-        else:
-            kernels = kernel
-    else:
-        if isinstance(kernel, list):
-            assert len(kernel) == 2, "Conv support only a 2D kernel."
-            kernels = kernel
-        else:
-            kernels = [kernel] * 2
-
-    requested_engine = kwargs.get('engine')
-    if requested_engine is not None:
-        if use_cudnn and requested_engine != 'CUDNN':
-            raise ValueError(
-                'When use_cudnn=True, the only engine you can specify is '
-                '"CUDNN"')
-        elif not use_cudnn and requested_engine == 'CUDNN':
-            raise ValueError(
-                'When use_cudnn=False, the only engine you can specify is '
-                '""')
-
-    if use_cudnn:
-        kwargs['engine'] = 'CUDNN'
-        kwargs['exhaustive_search'] = cudnn_exhaustive_search
-        if ws_nbytes_limit:
-            kwargs['ws_nbytes_limit'] = ws_nbytes_limit
-
-    use_bias =\
-            False if ("no_bias" in kwargs and kwargs["no_bias"]) else True
-    blob_out = blob_out or model.net.NextName()
-    weight_shape = [dim_out]
-    if order == "NCHW":
-        weight_shape.append(int(dim_in / group))
-        weight_shape.extend(kernels)
-    else:
-        weight_shape.extend(kernels)
-        weight_shape.append(int(dim_in / group))
-
-    WeightInitializer = initializers.update_initializer(
-        WeightInitializer, weight_init, ("XavierFill", {})
-    )
-    BiasInitializer = initializers.update_initializer(
-        BiasInitializer, bias_init, ("ConstantFill", {})
-    )
-    if not model.init_params:
-        WeightInitializer = initializers.ExternalInitializer()
-        BiasInitializer = initializers.ExternalInitializer()
-
-    weight = model.create_param(
-        param_name=blob_out + '_w',
-        shape=weight_shape,
-        initializer=WeightInitializer,
-        tags=ParameterTags.WEIGHT
-    )
-
-    mask_init = np.ones(weight_shape, dtype=np.float32)
-    mask = model.create_param(
-        param_name=blob_out + '_m',
-        shape=weight_shape,
-        initializer=Initializer(operator_name='GivenTensorFill', values=mask_init),
-        tags=ParameterTags.COMPUTED_PARAM
-    )
-
-    if use_bias:
-        bias = model.create_param(
-            param_name=blob_out + '_b',
-            shape=[dim_out, ],
-            initializer=BiasInitializer,
-            tags=ParameterTags.BIAS
-        )
-
-    blob_inter = model.net.Mul([mask,  weight])
-    if use_bias:
-        inputs = [blob_in, blob_inter, bias]
-    else:
-        inputs = [blob_in, blob_inter]
-
-    if transform_inputs is not None:
-        transform_inputs(model, blob_out, inputs)
-
-    # For the operator, we no longer need to provide the no_bias field
-    # because it can automatically figure this out from the number of
-    # inputs.
-    if 'no_bias' in kwargs:
-        del kwargs['no_bias']
-    if group != 1:
-        kwargs['group'] = group
-    if is_nd:
-        return model.net.Conv(
-            inputs,
-            blob_out,
-            kernels=kernels,
-            order=order,
-            **kwargs)
-    else:
-        if isinstance(kernel, list):
-            return model.net.Conv(
-                inputs,
-                blob_out,
-                kernel_h=kernel[0],
-                kernel_w=kernel[1],
-                order=order,
-                **kwargs)
-        else:
-            return model.net.Conv(
-                inputs,
-                blob_out,
-                kernel=kernel,
-                order=order,
-                **kwargs)
-
-def conv_sp(model, blob_in, blob_out, dim_in, dim_out, kernel,
-    weight_init=None,
-    bias_init=None,
-    WeightInitializer=None,
-    BiasInitializer=None,
-    group=1,
-    transform_inputs=None,
-    **kwargs
-):
-    return custom_conv(model, False, blob_in, blob_out, dim_in, dim_out, kernel,
-                     weight_init, bias_init, WeightInitializer, BiasInitializer,
-                     group, transform_inputs, **kwargs)
-
 def AddLeNetModel(model, data):
     conv1 = brew.conv(model, data, 'conv1', dim_in=1, dim_out=20, kernel=5)
     # Image size: 24 x 24 -> 12 x 12
     pool1 = brew.max_pool(model, conv1, 'pool1', kernel=2, stride=2)
     # Image size: 12 x 12 -> 8 x 8
-    pr_conv = brew.conv_sp(model, pool1, 'pr_conv', dim_in=20, dim_out=100, kernel=5)
+    conv2 = brew.conv(model, pool1, 'conv2', dim_in=20, dim_out=100, kernel=5)
     # Image size: 8 x 8 -> 4 x 4
-    pool2 = brew.max_pool(model, pr_conv, 'pool2', kernel=2, stride=2)
+    pool2 = brew.max_pool(model, conv2, 'pool2', kernel=2, stride=2)
     # 50 * 4 * 4 stands for dim_out from previous layer multiplied by the image size
+    # fc3 = brew.fc(model, pool2, 'fc3', dim_in=100 * 4 * 4, dim_out=500)
 
     pr = brew.fc_sp(model, pool2, 'pr', dim_in=100 * 4 * 4, dim_out=500)
 
@@ -284,7 +144,6 @@ def AddBookkeepingOperators(model):
         model.Summarize(param, [], to_file=1)
 
 def main():
-    brew.Register(conv_sp)
     brew.Register(fc_sp)
     # If you would like to see some really detailed initializations,
     # you can change --caffe2_log_level=0 to --caffe2_log_level=-1
@@ -384,33 +243,20 @@ def main():
         accuracy[i] = workspace.FetchBlob('accuracy')
         loss[i] = workspace.FetchBlob('loss')
 
-    # FC Mask
+    # Mask
     threshold = 0.045
     weights = workspace.FetchBlob("pr_w")
-    fc_masked_weights = stats.threshold(weights, threshmin=-threshold, threshmax=threshold, newval=1.0)
-    fc_masked_weights[fc_masked_weights != 1.0] = 0.0
-    f = open('files/pr_m.summary', 'w+')
-    pickle.dump(fc_masked_weights, f)
+    masked_weights = stats.threshold(weights, threshmin=-threshold, threshmax=threshold, newval=1.0)
+    masked_weights[masked_weights != 1.0] = 0.0
+    f = open('files/mask.summary', 'w+')
+    pickle.dump(masked_weights, f)
     f.close()
-    nonzero = float(np.count_nonzero(fc_masked_weights))
-    total = float(fc_masked_weights.size)
-    print "FC Nonzero: ", nonzero, " Total:", total, " NonZero / Total: ", nonzero / total
-
-    # Conv Mask
-    threshold = 0.063#0.045
-    weights = workspace.FetchBlob("pr_conv_w")
-    conv_masked_weights = stats.threshold(weights, threshmin=-threshold, threshmax=threshold, newval=1.0)
-    conv_masked_weights[conv_masked_weights != 1.0] = 0.0
-    f = open('files/pr_conv_m.summary', 'w+')
-    pickle.dump(conv_masked_weights, f)
-    f.close()
-    nonzero = float(np.count_nonzero(conv_masked_weights))
-    total = float(conv_masked_weights.size)
-    print "Conv Nonzero: ", nonzero, " Total:", total, " NonZero / Total: ", nonzero / total
+    nonzero = float(np.count_nonzero(masked_weights))
+    total = float(masked_weights.size)
+    print "Nonzero: ", nonzero, " Total:", total, " NonZero / Total: ", nonzero / total
 
     # Secondary Training
-    workspace.FeedBlob("pr_m", fc_masked_weights)
-    workspace.FeedBlob("pr_conv_m", conv_masked_weights)
+    workspace.FeedBlob("pr_m", masked_weights)
     for i in tqdm(range(secondary_train_iters)):
         workspace.RunNet(train_model.net)
         accuracy[i + init_train_iters] = workspace.FetchBlob('accuracy')
@@ -421,8 +267,7 @@ def main():
     workspace.CreateNet(test_model.net, overwrite=True)
     test_accuracy = np.zeros(test_iters)
 
-    workspace.FeedBlob("pr_m", fc_masked_weights)
-    workspace.FeedBlob("pr_conv_m", conv_masked_weights)
+    workspace.FeedBlob("pr_m", masked_weights)
     for i in tqdm(range(test_iters)):
         workspace.RunNet(test_model.net.Proto().name)
         test_accuracy[i] = workspace.FetchBlob('accuracy')
@@ -432,7 +277,7 @@ def main():
     pe_meta = pe.PredictorExportMeta(
         predict_net=deploy_model.net.Proto(),
         parameters=[str(b) for b in deploy_model.params],
-        inputs=["data", "pr_m", "pr_conv_m"],
+        inputs=["data", "pr_m"],
         outputs=["softmax"],
     )
 
