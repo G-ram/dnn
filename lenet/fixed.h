@@ -1,8 +1,10 @@
 #ifndef FIXED_H
 #define FIXED_H
 
-#define M 7
-#define N 8
+#include "types.h"
+
+#define M 9
+#define N 6
 #define MAX ((1 << 15) - 1)
 #define MIN (~MAX)
 #define ONE (1 << N)
@@ -12,9 +14,7 @@
 #define F_TO_FLOAT(f) (float)(f) / ONE 
 #define F_ADD(a, b) f_add(a, b)
 #define F_MUL(a, b) f_mul(a, b)
-
-typedef signed short fixed;
-typedef signed int lint;
+#define F_LT(a, b) a < b
 
 extern inline fixed f_add(fixed a, fixed b) {
     lint tmp;
@@ -34,9 +34,9 @@ extern inline fixed f_mul(fixed a, fixed b) {
     tmp = (lint)a * (lint)b;
     tmp += K;
     tmp >>= N;
-    if (tmp > MAX)
+    if (tmp > MAX) 
         tmp = MAX;
-    if (tmp < MIN)
+    if (tmp < MIN) 
         tmp = MIN;
     return (fixed)tmp;
 };
